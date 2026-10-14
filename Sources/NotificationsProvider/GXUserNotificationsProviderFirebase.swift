@@ -14,7 +14,7 @@ import FirebaseMessaging
 @objc(GXUserNotificationsProviderFirebase)
 open class GXUserNotificationsProviderFirebase: NSObject, GXUserNotificationsProviderProtocol, GXRemoteNotificationsProviderAppDelegateProtocol, MessagingDelegate {
 
-	public static let notificationsProviderTypeIdentifier = "Firebase"
+	public static let notificationsProviderTypeIdentifier = "Firebase Cloud Messaging"
 
 	public static let notificationPlatformIdKey = "NotificationPlatformId"
 
