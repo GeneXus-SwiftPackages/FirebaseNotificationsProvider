@@ -57,7 +57,19 @@ open class GXUserNotificationsProviderFirebase: NSObject, GXUserNotificationsPro
 	// MARK: - GXRemoteNotificationsProviderAppDelegateProtocol
 
 	public final func onDidRegisterForRemoteNotifications(withDeviceToken devToken: Data) {
-		Messaging.messaging().apnsToken = devToken
+		let messaging = Messaging.messaging()
+		messaging.apnsToken = devToken
+		// FCM declines the token request made at launch (no APNs token yet) and does not reliably retry
+		// on its own once the APNs token is set, so re-retrieve it explicitly (as the SDK log suggests).
+		messaging.token { [weak self] token, error in
+			guard let self = self else { return }
+			if let token = token {
+				self.handleReceivedRegistrationToken(token, from: messaging)
+			}
+			else if let error = error {
+				NSLog("[GXUserNotificationsProviderFirebase] Error retrieving FCM registration token: \(error)")
+			}
+		}
 	}
 
 	public final func onDidFailToRegisterForRemoteNotificationsWithError(_ error: Error) {
@@ -80,10 +92,15 @@ open class GXUserNotificationsProviderFirebase: NSObject, GXUserNotificationsPro
 	// MARK: - MessagingDelegate
 
 	public func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
-		let previousToken = self.fcmToken
-		self.fcmToken = fcmToken
-
 		guard let fcmToken = fcmToken else { return }
+		handleReceivedRegistrationToken(fcmToken, from: messaging)
+	}
+
+	/// Common path for tokens coming from the delegate callback or from an explicit `token()` request.
+	private func handleReceivedRegistrationToken(_ fcmToken: String, from messaging: Messaging) {
+		let previousToken = self.fcmToken
+		guard previousToken != fcmToken || !waitingForTokenCompletions.isEmpty else { return } // nothing new
+		self.fcmToken = fcmToken
 
 		if !waitingForTokenCompletions.isEmpty {
 			// First registration (or a registration waiting for the token): resolve pending completions.
